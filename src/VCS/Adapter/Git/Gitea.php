@@ -468,13 +468,21 @@ class Gitea extends Git
         $url = "/repos/{$owner}/{$repositoryName}/pulls?state=open&sort=recentupdate";
 
         $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "token $this->accessToken"]);
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to list pull requests: HTTP {$responseHeadersStatusCode}");
+        }
 
         $responseBody = $response['body'] ?? [];
 
         // Filter by head branch (source branch of the PR)
         foreach ($responseBody as $pr) {
-            $prHead = $pr['head'] ?? [];
-            $prHeadRef = $prHead['ref'] ?? '';
+            if (! is_array($pr) || ! isset($pr['head']['ref'])) {
+                continue;
+            }
+
+            $prHeadRef = $pr['head']['ref'];
             if ($prHeadRef === $branch) {
                 return $pr;
             }

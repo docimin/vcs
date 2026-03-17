@@ -704,6 +704,61 @@ class GiteaTest extends Base
         $this->markTestSkipped('Will be implemented in follow-up PR');
     }
 
+    public function test_create_file(): void
+    {
+        $repositoryName = 'test-create-file-'.\uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            $result = $this->vcsAdapter->createFile(
+                self::$owner,
+                $repositoryName,
+                'test.md',
+                '# Test',
+                'Add test file'
+            );
+
+            $this->assertIsArray($result);
+            $this->assertNotEmpty($result);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
+    }
+
+    public function test_create_file_on_branch(): void
+    {
+        $repositoryName = 'test-create-file-branch-'.\uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Main');
+            $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature', 'main');
+
+            // Create file on specific branch
+            $result = $this->vcsAdapter->createFile(
+                self::$owner,
+                $repositoryName,
+                'feature.md',
+                '# Feature',
+                'Add feature file',
+                'feature'  // ← Branch parameter
+            );
+
+            $this->assertIsArray($result);
+
+            // Verify it's on the right branch
+            $content = $this->vcsAdapter->getRepositoryContent(
+                self::$owner,
+                $repositoryName,
+                'feature.md',
+                'feature'
+            );
+            $this->assertSame('# Feature', $content['content']);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
+    }
+
     public function testListBranches(): void
     {
         $this->markTestSkipped('Will be implemented in follow-up PR');
