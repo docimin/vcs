@@ -380,14 +380,14 @@ class Gitea extends Git
      */
     public function getUser(string $username): array
     {
-        $url = "/users/{$username}";
+        $url = "/users/" . rawurlencode($username);
 
         $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "token $this->accessToken"]);
 
         $responseHeaders = $response['headers'] ?? [];
         $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
         if ($responseHeadersStatusCode >= 400) {
-            throw new Exception("Failed to get user information: HTTP {$responseHeadersStatusCode}");
+            throw new Exception("Failed to get user: HTTP {$responseHeadersStatusCode}");
         }
 
         return $response['body'] ?? [];
@@ -545,24 +545,15 @@ class Gitea extends Git
      * @param string $rootDirectory Root directory for sparse checkout
      * @return string Shell command to execute
      */
-    public function generateCloneCommand(string $owner, string $repositoryName, string $version, string $versionType, string $directory, string $rootDirectory): string
+    public function generateCloneCommand(string $owner, string $repositoryName, string $directory, string $rootDirectory, string $version, string $versionType, string $accessToken = ''): string
     {
-        if (empty($rootDirectory)) {
-            $rootDirectory = '*';
-        }
-
-        // URL encode components
-        $owner = urlencode($owner);
-        $repositoryName = urlencode($repositoryName);
-        $accessToken = !empty($this->accessToken) ? ':' . urlencode($this->accessToken) : '';
-
-        // Construct clone URL with token
         $cloneUrl = "{$this->giteaUrl}/{$owner}/{$repositoryName}";
         if (!empty($accessToken)) {
-            // Insert token into URL: http://token@gitea:3000/owner/repo
-            $cloneUrl = str_replace('://', "://{$owner}{$accessToken}@", $this->giteaUrl) . "/{$owner}/{$repositoryName}";
+            $cloneUrl = str_replace('://', "://{$owner}:{$accessToken}@", $this->giteaUrl) . "/{$owner}/{$repositoryName}";
         }
 
+        // SECURITY FIX: Escape clone URL
+        $cloneUrl = escapeshellarg($cloneUrl);
         $directory = escapeshellarg($directory);
         $rootDirectory = escapeshellarg($rootDirectory);
 
@@ -572,12 +563,9 @@ class Gitea extends Git
             "git config --global init.defaultBranch main",
             "git init",
             "git remote add origin {$cloneUrl}",
-            // Enable sparse checkout
             "git config core.sparseCheckout true",
             "echo {$rootDirectory} >> .git/info/sparse-checkout",
-            // Disable fetching of refs we don't need
             "git config --add remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'",
-            // Disable fetching of tags
             "git config remote.origin.tagopt --no-tags",
         ];
 
@@ -592,13 +580,14 @@ class Gitea extends Git
                 break;
             case self::CLONE_TYPE_TAG:
                 $tagName = escapeshellarg($version);
-                $commands[] = "git fetch --depth=1 origin refs/tags/$(git ls-remote --tags origin {$tagName} | tail -n 1 | awk -F '/' '{print \$3}') && git checkout FETCH_HEAD";
+                // FIX: Add --refs to exclude peeled refs (v1.0.0^{})
+                $commands[] = "git fetch --depth=1 origin refs/tags/$(git ls-remote --refs --tags origin {$tagName} | tail -n 1 | awk -F '/' '{print \$3}') && git checkout FETCH_HEAD";
                 break;
+            default:
+                throw new Exception("Unsupported clone type: {$versionType}");
         }
 
-        $fullCommand = implode(" && ", $commands);
-
-        return $fullCommand;
+        return implode(' && ', $commands);
     }
 
     public function getEvent(string $event, string $payload): array

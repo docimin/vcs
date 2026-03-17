@@ -354,10 +354,10 @@ class GiteaTest extends Base
             $command = $this->vcsAdapter->generateCloneCommand(
                 self::$owner,
                 $repositoryName,
-                'main',
-                \Utopia\VCS\Adapter\Git::CLONE_TYPE_BRANCH,
                 '/tmp/test-clone-' . \uniqid(),
-                '*'
+                '/',
+                'main',
+                \Utopia\VCS\Adapter\Git::CLONE_TYPE_BRANCH
             );
 
             $this->assertIsString($command);
@@ -384,10 +384,10 @@ class GiteaTest extends Base
             $command = $this->vcsAdapter->generateCloneCommand(
                 self::$owner,
                 $repositoryName,
-                $commitHash,
-                \Utopia\VCS\Adapter\Git::CLONE_TYPE_COMMIT,
                 '/tmp/test-clone-commit-' . \uniqid(),
-                '*'
+                '/',
+                $commitHash,
+                \Utopia\VCS\Adapter\Git::CLONE_TYPE_COMMIT
             );
 
             $this->assertIsString($command);
@@ -417,10 +417,10 @@ class GiteaTest extends Base
             $command = $this->vcsAdapter->generateCloneCommand(
                 self::$owner,
                 $repositoryName,
-                'v1.0.0',
-                \Utopia\VCS\Adapter\Git::CLONE_TYPE_TAG,
                 '/tmp/test-clone-tag-' . \uniqid(),
-                '*'
+                '/',
+                'v1.0.0',
+                \Utopia\VCS\Adapter\Git::CLONE_TYPE_TAG
             );
 
             // Verify the command contains tag-specific git commands
