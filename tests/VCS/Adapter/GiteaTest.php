@@ -704,7 +704,7 @@ class GiteaTest extends Base
         $this->markTestSkipped('Will be implemented in follow-up PR');
     }
 
-    public function test_create_file(): void
+    public function testCreateFile(): void
     {
         $repositoryName = 'test-create-file-'.\uniqid();
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
@@ -725,7 +725,7 @@ class GiteaTest extends Base
         }
     }
 
-    public function test_create_file_on_branch(): void
+    public function testCreateFileOnBranch(): void
     {
         $repositoryName = 'test-create-file-branch-'.\uniqid();
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
