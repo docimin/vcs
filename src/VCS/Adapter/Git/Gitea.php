@@ -117,12 +117,88 @@ class Gitea extends Git
         return $responseBody['name'] ?? '';
     }
 
-    // Stub methods to satisfy abstract class requirements
-    // These will be implemented in follow-up PRs
-
+    /**
+     * Search repositories in organization
+     *
+     * @param string $installationId Not used in Gitea (kept for interface compatibility)
+     * @param string $owner Organization or user name
+     * @param int $page Page number for pagination
+     * @param int $per_page Number of results per page
+     * @param string $search Search query to filter repository names
+     * @return array<mixed> Array with 'items' (repositories) and 'total' count
+     */
     public function searchRepositories(string $installationId, string $owner, int $page, int $per_page, string $search = ''): array
     {
-        throw new Exception("Not implemented yet");
+        $filteredRepos = [];
+        $currentPage = 1;
+        $maxPages = 50;
+
+        $neededForPage = $page * $per_page;
+        $maxToCollect = $neededForPage + $per_page;
+
+        while ($currentPage <= $maxPages) {
+            $queryParams = [
+                'page' => $currentPage,
+                'limit' => 100,
+            ];
+
+            if (!empty($search)) {
+                $queryParams['q'] = $search;
+            }
+
+            $query = http_build_query($queryParams);
+            $url = "/repos/search?{$query}";
+
+            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "token $this->accessToken"]);
+
+            $responseHeaders = $response['headers'] ?? [];
+            $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+            if ($responseHeadersStatusCode >= 400) {
+                throw new Exception("Repository search failed with status code {$responseHeadersStatusCode}");
+            }
+
+            $responseBody = $response['body'] ?? [];
+
+            if (!is_array($responseBody)) {
+                throw new Exception('Unexpected response body: ' . json_encode($responseBody));
+            }
+
+            if (!array_key_exists('data', $responseBody)) {
+                throw new Exception("Repositories list missing in response: " . json_encode($responseBody));
+            }
+
+            $repos = $responseBody['data'];
+
+            if (empty($repos)) {
+                break;
+            }
+
+            foreach ($repos as $repo) {
+                $repoOwner = $repo['owner']['login'] ?? '';
+                if ($repoOwner === $owner) {
+                    $filteredRepos[] = $repo;
+
+                    if (count($filteredRepos) >= $maxToCollect) {
+                        break 2;
+                    }
+                }
+            }
+
+            if (count($repos) < 100) {
+                break;
+            }
+
+            $currentPage++;
+        }
+
+        $total = count($filteredRepos);
+        $offset = ($page - 1) * $per_page;
+        $pagedRepos = array_slice($filteredRepos, $offset, $per_page);
+
+        return [
+            'items' => $pagedRepos,
+            'total' => $total,
+        ];
     }
 
     public function getInstallationRepository(string $repositoryName): array
@@ -457,7 +533,7 @@ class Gitea extends Git
 
     public function getOwnerName(string $installationId): string
     {
-        throw new Exception("Not implemented yet");
+        throw new Exception("getOwnerName() is not applicable for Gitea");
     }
 
     public function getPullRequest(string $owner, string $repositoryName, int $pullRequestNumber): array
@@ -493,9 +569,58 @@ class Gitea extends Git
         return $responseBody[0] ?? [];
     }
 
+    /**
+     * List all branches in a repository
+     *
+     * @param string $owner Owner of the repository
+     * @param string $repositoryName Name of the repository
+     * @return array<string> Array of branch names
+     */
     public function listBranches(string $owner, string $repositoryName): array
     {
-        throw new Exception("Not implemented yet");
+        $allBranches = [];
+        $perPage = 50;
+        $maxPages = 100;
+
+        for ($currentPage = 1; $currentPage <= $maxPages; $currentPage++) {
+            $url = "/repos/{$owner}/{$repositoryName}/branches?page={$currentPage}&limit={$perPage}";
+
+            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "token $this->accessToken"]);
+
+            $responseHeaders = $response['headers'] ?? [];
+            $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+
+            if ($responseHeadersStatusCode === 404) {
+                return [];
+            }
+
+            if ($responseHeadersStatusCode >= 400) {
+                if ($currentPage === 1) {
+                    throw new Exception("Failed to list branches: HTTP {$responseHeadersStatusCode}");
+                }
+                break;
+            }
+
+            $responseBody = $response['body'] ?? [];
+
+            if (!is_array($responseBody)) {
+                break;
+            }
+
+            $pageCount = 0;
+            foreach ($responseBody as $branch) {
+                if (is_array($branch) && array_key_exists('name', $branch)) {
+                    $allBranches[] = $branch['name'] ?? '';
+                    $pageCount++;
+                }
+            }
+
+            if ($pageCount < $perPage) {
+                break;
+            }
+        }
+
+        return $allBranches;
     }
 
     /**

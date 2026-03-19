@@ -614,7 +614,84 @@ class GiteaTest extends Base
     }
     public function testSearchRepositories(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        // Create multiple repositories
+        $repo1Name = 'test-search-repo1-' . \uniqid();
+        $repo2Name = 'test-search-repo2-' . \uniqid();
+        $repo3Name = 'other-repo-' . \uniqid();
+
+        $this->vcsAdapter->createRepository(self::$owner, $repo1Name, false);
+        $this->vcsAdapter->createRepository(self::$owner, $repo2Name, false);
+        $this->vcsAdapter->createRepository(self::$owner, $repo3Name, false);
+
+        try {
+            // Search without filter - should return all
+            $result = $this->vcsAdapter->searchRepositories('', self::$owner, 1, 10);
+
+            $this->assertIsArray($result);
+            $this->assertArrayHasKey('items', $result);
+            $this->assertArrayHasKey('total', $result);
+            $this->assertGreaterThanOrEqual(3, $result['total']);
+
+            // Search with filter
+            $result = $this->vcsAdapter->searchRepositories('', self::$owner, 1, 10, 'test-search');
+
+            $this->assertIsArray($result);
+            $this->assertGreaterThanOrEqual(2, $result['total']);
+
+            // Verify the filtered repos are in results
+            $repoNames = array_column($result['items'], 'name');
+            $this->assertContains($repo1Name, $repoNames);
+            $this->assertContains($repo2Name, $repoNames);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repo1Name);
+            $this->vcsAdapter->deleteRepository(self::$owner, $repo2Name);
+            $this->vcsAdapter->deleteRepository(self::$owner, $repo3Name);
+        }
+    }
+
+    public function testSearchRepositoriesPagination(): void
+    {
+        $repo1 = 'test-pagination-1-' . \uniqid();
+        $repo2 = 'test-pagination-2-' . \uniqid();
+
+        $this->vcsAdapter->createRepository(self::$owner, $repo1, false);
+        $this->vcsAdapter->createRepository(self::$owner, $repo2, false);
+
+        try {
+            $result = $this->vcsAdapter->searchRepositories('', self::$owner, 1, 1, 'test-pagination');
+
+            $this->assertSame(1, count($result['items']));
+            $this->assertGreaterThanOrEqual(2, $result['total']);
+
+            $result2 = $this->vcsAdapter->searchRepositories('', self::$owner, 2, 1, 'test-pagination');
+            $this->assertSame(1, count($result2['items']));
+
+            $result20 = $this->vcsAdapter->searchRepositories('', self::$owner, 20, 1, 'test-pagination');
+            $this->assertIsArray($result20);
+            $this->assertEmpty($result20['items']);
+
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repo1);
+            $this->vcsAdapter->deleteRepository(self::$owner, $repo2);
+        }
+    }
+
+    public function testSearchRepositoriesNoResults(): void
+    {
+        $result = $this->vcsAdapter->searchRepositories('', self::$owner, 1, 10, 'nonexistent-repo-xyz-' . \uniqid());
+
+        $this->assertIsArray($result);
+        $this->assertEmpty($result['items']);
+        $this->assertSame(0, $result['total']);
+    }
+
+    public function testSearchRepositoriesInvalidOwner(): void
+    {
+        $result = $this->vcsAdapter->searchRepositories('', 'nonexistent-owner-' . \uniqid(), 1, 10);
+
+        $this->assertIsArray($result);
+        $this->assertEmpty($result['items']);
+        $this->assertSame(0, $result['total']);
     }
 
     public function testDeleteRepository(): void
@@ -645,7 +722,18 @@ class GiteaTest extends Base
 
     public function testGetOwnerName(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('not applicable for Gitea');
+
+        $this->vcsAdapter->getOwnerName('');
+    }
+
+    public function testGetOwnerNameWithRandomInput(): void
+    {
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('not applicable for Gitea');
+
+        $this->vcsAdapter->getOwnerName('random-gibberish-' . \uniqid());
     }
 
     public function testGetPullRequestFromBranch(): void
@@ -760,7 +848,38 @@ class GiteaTest extends Base
 
     public function testListBranches(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        $repositoryName = 'test-list-branches-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            // Create initial file on main branch
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+
+            // Create additional branches
+            $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature-1', 'main');
+            $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature-2', 'main');
+
+            $branches = [];
+            $maxAttempts = 10;
+            for ($attempt = 0; $attempt < $maxAttempts; $attempt++) {
+                $branches = $this->vcsAdapter->listBranches(self::$owner, $repositoryName);
+
+                if (in_array('feature-1', $branches, true) && in_array('feature-2', $branches, true)) {
+                    break;
+                }
+
+                usleep(500000);
+            }
+
+            $this->assertIsArray($branches);
+            $this->assertNotEmpty($branches);
+            $this->assertContains('main', $branches);
+            $this->assertContains('feature-1', $branches);
+            $this->assertContains('feature-2', $branches);
+            $this->assertGreaterThanOrEqual(3, count($branches));
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
     }
 
     public function testListRepositoryLanguages(): void
