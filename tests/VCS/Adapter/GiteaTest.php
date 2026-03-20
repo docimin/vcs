@@ -722,18 +722,52 @@ class GiteaTest extends Base
 
     public function testGetOwnerName(): void
     {
+        $repositoryName = 'test-get-owner-name-' . \uniqid();
+        $created = $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            $this->assertIsArray($created);
+            $this->assertArrayHasKey('id', $created);
+            $this->assertIsScalar($created['id']);
+            $repositoryId = (int) $created['id'];
+
+            $ownerName = $this->vcsAdapter->getOwnerName('', $repositoryId);
+
+            $this->assertSame(self::$owner, $ownerName);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
+    }
+
+    public function testGetOwnerNameWithZeroRepositoryId(): void
+    {
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('not applicable for Gitea');
+        $this->expectExceptionMessage('repositoryId is required for Gitea');
+
+        $this->vcsAdapter->getOwnerName('', 0);
+    }
+
+    public function testGetOwnerNameWithoutRepositoryId(): void
+    {
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('repositoryId is required for Gitea');
 
         $this->vcsAdapter->getOwnerName('');
     }
 
-    public function testGetOwnerNameWithRandomInput(): void
+    public function testGetOwnerNameWithInvalidRepositoryId(): void
+    {
+        $this->expectException(\Utopia\VCS\Exception\RepositoryNotFound::class);
+
+        $this->vcsAdapter->getOwnerName('', 999999999);
+    }
+
+    public function testGetOwnerNameWithNullRepositoryId(): void
     {
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('not applicable for Gitea');
+        $this->expectExceptionMessage('repositoryId is required for Gitea');
 
-        $this->vcsAdapter->getOwnerName('random-gibberish-' . \uniqid());
+        $this->vcsAdapter->getOwnerName('', null);
     }
 
     public function testGetPullRequestFromBranch(): void
