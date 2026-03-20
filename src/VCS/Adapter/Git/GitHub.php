@@ -618,10 +618,13 @@ class GitHub extends Git
     /**
      * Get owner name of the GitHub installation
      *
-     * @return string
+     * @param string $installationId GitHub App installation ID
+     * @param int|null $repositoryId Not used by GitHub (parameter exists for Gitea compatibility)
+     * @return string Owner login/username
      */
-    public function getOwnerName(string $installationId): string
+    public function getOwnerName(string $installationId, ?int $repositoryId = null): string
     {
+        // GitHub doesn't use $repositoryId - only installationId
         $url = '/app/installations/' . $installationId;
         $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->jwtToken"]);
 
