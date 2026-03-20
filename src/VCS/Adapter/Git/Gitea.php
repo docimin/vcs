@@ -557,9 +557,35 @@ class Gitea extends Git
         return $response['body'] ?? [];
     }
 
-    public function getOwnerName(string $installationId): string
+    public function getOwnerName(string $installationId, ?int $repositoryId = null): string
     {
-        throw new Exception("getOwnerName() is not applicable for Gitea");
+        if ($repositoryId === null || $repositoryId <= 0) {
+            throw new Exception("repositoryId is required for Gitea");
+        }
+
+        $url = "/repositories/{$repositoryId}";
+
+        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "token $this->accessToken"]);
+
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+
+        if ($responseHeadersStatusCode === 404) {
+            throw new RepositoryNotFound("Repository not found");
+        }
+
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to get repository: HTTP {$responseHeadersStatusCode}");
+        }
+
+        $responseBody = $response['body'] ?? [];
+        $owner = $responseBody['owner'] ?? [];
+
+        if (empty($owner['login'])) {
+            throw new Exception("Owner login missing or empty in response");
+        }
+
+        return $owner['login'];
     }
 
     public function getPullRequest(string $owner, string $repositoryName, int $pullRequestNumber): array

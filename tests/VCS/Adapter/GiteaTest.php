@@ -611,7 +611,40 @@ class GiteaTest extends Base
 
     public function testUpdateComment(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        $repositoryName = 'test-update-comment-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+            $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'test-branch', 'main');
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'test.txt', 'test', 'Add test', 'test-branch');
+
+            // Create PR
+            $pr = $this->vcsAdapter->createPullRequest(
+                self::$owner,
+                $repositoryName,
+                'Test PR',
+                'test-branch',
+                'main'
+            );
+
+            $prNumber = $pr['number'] ?? 0;
+            $this->assertGreaterThan(0, $prNumber);
+
+            // Create comment
+            $commentId = $this->vcsAdapter->createComment(self::$owner, $repositoryName, $prNumber, 'Original comment');
+
+            // Test updateComment
+            $updatedCommentId = $this->vcsAdapter->updateComment(self::$owner, $repositoryName, (int)$commentId, 'Updated comment');
+
+            $this->assertSame($commentId, $updatedCommentId);
+
+            // Verify comment was updated
+            $finalComment = $this->vcsAdapter->getComment(self::$owner, $repositoryName, $commentId);
+            $this->assertSame('Updated comment', $finalComment);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
     }
 
     public function testUpdateCommitStatus(): void
@@ -897,18 +930,52 @@ class GiteaTest extends Base
 
     public function testGetOwnerName(): void
     {
+        $repositoryName = 'test-get-owner-name-' . \uniqid();
+        $created = $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            $this->assertIsArray($created);
+            $this->assertArrayHasKey('id', $created);
+            $this->assertIsScalar($created['id']);
+            $repositoryId = (int) $created['id'];
+
+            $ownerName = $this->vcsAdapter->getOwnerName('', $repositoryId);
+
+            $this->assertSame(self::$owner, $ownerName);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
+    }
+
+    public function testGetOwnerNameWithZeroRepositoryId(): void
+    {
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('not applicable for Gitea');
+        $this->expectExceptionMessage('repositoryId is required for Gitea');
+
+        $this->vcsAdapter->getOwnerName('', 0);
+    }
+
+    public function testGetOwnerNameWithoutRepositoryId(): void
+    {
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('repositoryId is required for Gitea');
 
         $this->vcsAdapter->getOwnerName('');
     }
 
-    public function testGetOwnerNameWithRandomInput(): void
+    public function testGetOwnerNameWithInvalidRepositoryId(): void
+    {
+        $this->expectException(\Utopia\VCS\Exception\RepositoryNotFound::class);
+
+        $this->vcsAdapter->getOwnerName('', 999999999);
+    }
+
+    public function testGetOwnerNameWithNullRepositoryId(): void
     {
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('not applicable for Gitea');
+        $this->expectExceptionMessage('repositoryId is required for Gitea');
 
-        $this->vcsAdapter->getOwnerName('random-gibberish-' . \uniqid());
+        $this->vcsAdapter->getOwnerName('', null);
     }
 
     public function testGetUser(): void
@@ -989,7 +1056,39 @@ class GiteaTest extends Base
 
     public function testCreateComment(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        $repositoryName = 'test-create-comment-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+            $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'test-branch', 'main');
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'test.txt', 'test', 'Add test', 'test-branch');
+
+            // Create PR
+            $pr = $this->vcsAdapter->createPullRequest(
+                self::$owner,
+                $repositoryName,
+                'Test PR',
+                'test-branch',
+                'main'
+            );
+
+            $prNumber = $pr['number'] ?? 0;
+            $this->assertGreaterThan(0, $prNumber);
+
+            // Test createComment
+            $commentId = $this->vcsAdapter->createComment(self::$owner, $repositoryName, $prNumber, 'Test comment');
+
+            $this->assertNotEquals('', $commentId);
+            $this->assertIsString($commentId);
+            $this->assertIsNumeric($commentId);
+
+            // Verify comment was created
+            $retrievedComment = $this->vcsAdapter->getComment(self::$owner, $repositoryName, $commentId);
+            $this->assertSame('Test comment', $retrievedComment);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
     }
 
     public function testCreateFile(): void
