@@ -108,7 +108,7 @@ services:
       -c "
         su git -c \"forgejo admin user create --username $$FORGEJO_ADMIN_USERNAME --password $$FORGEJO_ADMIN_PASSWORD --email $$FORGEJO_ADMIN_EMAIL --admin --must-change-password=false\" || true &&
         TOKEN=$$(su git -c \"forgejo admin user generate-access-token --username $$FORGEJO_ADMIN_USERNAME --token-name $$FORGEJO_ADMIN_USERNAME-token --scopes all --raw\") &&
-        echo $$TOKEN > /data/forgejo/token.txt
+        echo $$TOKEN > /data/gitea/token.txt
       "
 
 volumes:

@@ -46,7 +46,7 @@ class ForgejoTest extends GiteaTest
 
     protected function setupForgejo(): void
     {
-        $tokenFile = '/forgejo-data/forgejo/token.txt';
+        $tokenFile = '/forgejo-data/gitea/token.txt';
 
         if (file_exists($tokenFile)) {
             $contents = file_get_contents($tokenFile);
