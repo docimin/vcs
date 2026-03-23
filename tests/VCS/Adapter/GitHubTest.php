@@ -109,7 +109,7 @@ class GitHubTest extends Base
             "pull_request": {
                 "id": 1303283688,
                 "state": "open",
-                "html_url": "https://github.com/vermakhushboo/g4-node-function/pull/17",
+                "html_url": "https://github.com/vermakhushboo/basic-js-crud/pull/1",
                 "head": {
                     "ref": "test",
                     "sha": "a27dbe54b17032ee35a16c24bac151e5c2b33328",
@@ -131,11 +131,11 @@ class GitHubTest extends Base
             },
             "repository": {
                 "id": 3498,
-                "name": "functions-example",
+                "name": "basic-js-crud",
                 "owner": {
                     "login": "vermakhushboo"
                 },
-                "html_url": "https://github.com/vermakhushboo/g4-node-function"
+                "html_url": "https://github.com/vermakhushboo/basic-js-crud"
             },
             "installation": {
                 "id": 9876
@@ -149,6 +149,8 @@ class GitHubTest extends Base
 
         $this->assertSame('opened', $result['action']);
         $this->assertSame(1, $result['pullRequestNumber']);
+        $this->assertCount(1, $result['affectedFiles']);
+        $this->assertContains('README.md', $result['affectedFiles']);
     }
 
     public function testGetEventInstallation(): void
@@ -353,6 +355,21 @@ class GitHubTest extends Base
         $this->assertSame($pullRequestNumber, $result['number']);
         $this->assertSame($owner, $result['base']['user']['login']);
         $this->assertSame($repositoryName, $result['base']['repo']['name']);
+    }
+
+    public function testGetPullRequestFiles(): void
+    {
+        $owner = 'vermakhushboo';
+        $repositoryName = 'basic-js-crud';
+        $pullRequestNumber = 1;
+
+        $result = $this->vcsAdapter->getPullRequestFiles($owner, $repositoryName, $pullRequestNumber);
+
+        $this->assertIsArray($result);
+        $this->assertNotEmpty($result);
+
+        $filenames = array_column($result, 'filename');
+        $this->assertContains('README.md', $filenames);
     }
 
     public function testGenerateCloneCommand(): void

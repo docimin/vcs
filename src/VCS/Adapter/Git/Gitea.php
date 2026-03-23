@@ -651,6 +651,39 @@ class Gitea extends Git
         return $response['body'] ?? [];
     }
 
+    /**
+     * Get files changed in a pull request
+     *
+     * @return array<mixed> List of files changed in the pull request
+     */
+    public function getPullRequestFiles(string $owner, string $repositoryName, int $pullRequestNumber): array
+    {
+        $allFiles = [];
+        $limit = 30;
+        $maxPages = 100;
+
+        for ($currentPage = 1; $currentPage <= $maxPages; $currentPage++) {
+            $url = "/repos/{$owner}/{$repositoryName}/pulls/{$pullRequestNumber}/files?page={$currentPage}&limit={$limit}";
+
+            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "token $this->accessToken"]);
+
+            $responseHeaders = $response['headers'] ?? [];
+            $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+            if ($responseHeadersStatusCode >= 400) {
+                throw new Exception("Failed to get pull request files: HTTP {$responseHeadersStatusCode}");
+            }
+
+            $files = $response['body'] ?? [];
+            $allFiles = array_merge($allFiles, $files);
+
+            if (\count($files) < $limit) {
+                break;
+            }
+        }
+
+        return $allFiles;
+    }
+
     public function getPullRequestFromBranch(string $owner, string $repositoryName, string $branch): array
     {
 
@@ -1004,6 +1037,9 @@ class Gitea extends Git
                 $baseRepoFullName = $payloadRepository['full_name'] ?? '';
                 $external = !empty($headRepoFullName) && !empty($baseRepoFullName) && $headRepoFullName !== $baseRepoFullName;
 
+                $prFiles = $this->getPullRequestFiles($owner, $repositoryName, (int)$pullRequestNumber);
+                $affectedFiles = array_column($prFiles, 'filename');
+
                 return [
                     'branch' => $branch,
                     'branchUrl' => $branchUrl,
@@ -1019,6 +1055,7 @@ class Gitea extends Git
                     'external' => $external,
                     'pullRequestNumber' => $pullRequestNumber,
                     'action' => $action,
+                    'affectedFiles' => $affectedFiles,
                 ];
         }
 
