@@ -8,7 +8,6 @@ use Utopia\System\System;
 use Utopia\Tests\Base;
 use Utopia\VCS\Adapter\Git;
 use Utopia\VCS\Adapter\Git\Gitea;
-use Utopia\Fetch\Client;
 
 class GiteaTest extends Base
 {
@@ -55,71 +54,6 @@ class GiteaTest extends Base
                 self::$accessToken = trim($contents);
             }
         }
-    }
-
-    private function configureWebhook(string $owner, string $repositoryName, string $secret): int
-    {
-        $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
-
-        return $this->vcsAdapter->createWebhook(
-            $owner,
-            $repositoryName,
-            $catcherUrl . '/webhook',
-            $secret
-        );
-    }
-
-    /** @return array<mixed> */
-    private function getLastWebhookRequest(): array
-    {
-        $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
-
-        $client = new Client();
-        $response = $client->fetch(
-            url: "{$catcherUrl}/__last_request__",
-            method: 'GET'
-        );
-
-        if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
-            return [];
-        }
-
-        $body = $response->text();
-
-        if (empty($body)) {
-            return [];
-        }
-
-        return json_decode($body, true) ?? [];
-    }
-
-    private function assertEventually(callable $probe, int $timeoutMs = 15000, int $waitMs = 500): void
-    {
-        $start = microtime(true) * 1000;
-        $lastException = null;
-
-        while ((microtime(true) * 1000 - $start) < $timeoutMs) {
-            try {
-                $probe();
-                return;
-            } catch (\Throwable $e) {
-                $lastException = $e;
-                usleep($waitMs * 1000);
-            }
-        }
-
-        throw $lastException ?? new \Exception('assertEventually timed out');
-    }
-
-    private function clearWebhookRequests(): void
-    {
-        $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
-
-        $client = new Client();
-        $client->fetch(
-            url: "{$catcherUrl}/__clear__",
-            method: 'DELETE'
-        );
     }
 
     public function testCreateRepository(): void
@@ -1308,8 +1242,9 @@ class GiteaTest extends Base
         $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
 
         try {
-            $this->clearWebhookRequests();
-            $this->configureWebhook(self::$owner, $repositoryName, $secret);
+            $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
+            $this->deleteLastWebhookRequest();
+            $this->vcsAdapter->createWebhook(self::$owner, $repositoryName, $catcherUrl . '/webhook', $secret);
 
             // Trigger a real push by creating a file
             $this->vcsAdapter->createFile(
@@ -1364,10 +1299,11 @@ class GiteaTest extends Base
             $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature-branch', 'main');
             $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'feature.txt', 'content', 'Add feature', 'feature-branch');
 
-            $this->configureWebhook(self::$owner, $repositoryName, $secret);
+            $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
+            $this->vcsAdapter->createWebhook(self::$owner, $repositoryName, $catcherUrl . '/webhook', $secret);
 
             // Clear after setup so only PR event will arrive
-            $this->clearWebhookRequests();
+            $this->deleteLastWebhookRequest();
 
             // Trigger real PR event
             $this->vcsAdapter->createPullRequest(
