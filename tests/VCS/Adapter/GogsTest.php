@@ -11,12 +11,12 @@ use Utopia\VCS\Adapter\Git\Gogs;
 class GogsTest extends GiteaTest
 {
     protected static string $accessToken = '';
-
     protected static string $owner = '';
-
+    
     protected string $webhookEventHeader = 'X-Gogs-Event';
     protected string $webhookSignatureHeader = 'X-Gogs-Signature';
     protected string $avatarDomain = 'gravatar.com';
+    protected static string $defaultBranch = 'master';
 
     protected function createVCSAdapter(): Git
     {
@@ -40,6 +40,7 @@ class GogsTest extends GiteaTest
             refreshToken: ''
         );
         $adapter->setEndpoint($gogsUrl);
+
         if (empty(static::$owner)) {
             $orgName = 'test-org-' . \uniqid();
             static::$owner = $adapter->createOrganization($orgName);
