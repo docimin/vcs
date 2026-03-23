@@ -80,9 +80,14 @@ abstract class Adapter
     /**
      * Get owner name of the installation
      *
-     * @return string
+     * For GitHub: Uses installationId to identify the GitHub App installation
+     * For Gitea: Requires repositoryId since OAuth tokens can access multiple organizations
+     *
+     * @param string $installationId Installation ID (GitHub) or empty string (Gitea)
+     * @param int|null $repositoryId Repository ID (required for Gitea, ignored by GitHub)
+     * @return string Owner login/username
      */
-    abstract public function getOwnerName(string $installationId): string;
+    abstract public function getOwnerName(string $installationId, ?int $repositoryId = null): string;
 
     /**
      * Search repositories for GitHub App

@@ -72,6 +72,19 @@ abstract class Git extends Adapter
     abstract public function createPullRequest(string $owner, string $repositoryName, string $title, string $head, string $base, string $body = ''): array;
 
     /**
+     * Create a webhook on a repository
+     *
+     * @param string $owner Owner of the repository
+     * @param string $repositoryName Name of the repository
+     * @param string $url Webhook URL to send events to
+     * @param string $secret Webhook secret for signature validation
+     * @param array<string> $events Events to trigger the webhook
+     * @return int Webhook ID
+     */
+    abstract public function createWebhook(string $owner, string $repositoryName, string $url, string $secret, array $events = ['push', 'pull_request']): int;
+
+
+    /**
      * Create a tag in a repository
      *
      * @param string $owner Owner of the repository

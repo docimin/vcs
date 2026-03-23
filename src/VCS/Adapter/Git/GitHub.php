@@ -110,6 +110,16 @@ class GitHub extends Git
     }
 
     /**
+     * Create a webhook on a repository
+     *
+     * Note: Not applicable for GitHub - webhooks are managed via GitHub Apps
+     */
+    public function createWebhook(string $owner, string $repositoryName, string $url, string $secret, array $events = ['push', 'pull_request']): int
+    {
+        throw new Exception('Not applicable for GitHub - webhooks are managed via GitHub Apps');
+    }
+
+    /**
      * Create a file in a repository
      *
      * @param  string  $owner  Owner of the repository
@@ -618,10 +628,13 @@ class GitHub extends Git
     /**
      * Get owner name of the GitHub installation
      *
-     * @return string
+     * @param string $installationId GitHub App installation ID
+     * @param int|null $repositoryId Not used by GitHub (parameter exists for Gitea compatibility)
+     * @return string Owner login/username
      */
-    public function getOwnerName(string $installationId): string
+    public function getOwnerName(string $installationId, ?int $repositoryId = null): string
     {
+        // GitHub doesn't use $repositoryId - only installationId
         $url = '/app/installations/' . $installationId;
         $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->jwtToken"]);
 

@@ -55,6 +55,7 @@ class GiteaTest extends Base
             }
         }
     }
+
     public function testCreateRepository(): void
     {
         $owner = self::$owner;
@@ -611,7 +612,40 @@ class GiteaTest extends Base
 
     public function testUpdateComment(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        $repositoryName = 'test-update-comment-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+            $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'test-branch', 'main');
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'test.txt', 'test', 'Add test', 'test-branch');
+
+            // Create PR
+            $pr = $this->vcsAdapter->createPullRequest(
+                self::$owner,
+                $repositoryName,
+                'Test PR',
+                'test-branch',
+                'main'
+            );
+
+            $prNumber = $pr['number'] ?? 0;
+            $this->assertGreaterThan(0, $prNumber);
+
+            // Create comment
+            $commentId = $this->vcsAdapter->createComment(self::$owner, $repositoryName, $prNumber, 'Original comment');
+
+            // Test updateComment
+            $updatedCommentId = $this->vcsAdapter->updateComment(self::$owner, $repositoryName, (int)$commentId, 'Updated comment');
+
+            $this->assertSame($commentId, $updatedCommentId);
+
+            // Verify comment was updated
+            $finalComment = $this->vcsAdapter->getComment(self::$owner, $repositoryName, $commentId);
+            $this->assertSame('Updated comment', $finalComment);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
     }
 
     public function testUpdateCommitStatus(): void
@@ -783,10 +817,229 @@ class GiteaTest extends Base
         }
     }
 
-    public function testGetEvent(): void
+    public function testGetEventPush(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        $payload = json_encode([
+            'ref' => 'refs/heads/main',
+            'before' => 'abc123',
+            'after' => 'def456',
+            'created' => false,
+            'deleted' => false,
+            'repository' => [
+                'id' => 123,
+                'name' => 'test-repo',
+                'html_url' => 'http://gitea:3000/test-owner/test-repo',
+                'owner' => [
+                    'login' => 'test-owner',
+                ],
+            ],
+            'sender' => [
+                'login' => 'pusher-user',
+                'html_url' => 'http://gitea:3000/pusher-user',
+                'avatar_url' => 'http://gitea:3000/avatars/pusher',
+            ],
+            'head_commit' => [
+                'id' => 'def456',
+                'message' => 'Test commit message',
+                'url' => 'http://gitea:3000/test-owner/test-repo/commit/def456',
+                'author' => [
+                    'name' => 'Test Author',
+                    'email' => 'author@example.com',
+                ],
+            ],
+            'commits' => [
+                [
+                    'id' => 'def456',
+                    'added' => ['file1.txt'],
+                    'removed' => ['file2.txt'],
+                    'modified' => ['file3.txt'],
+                ],
+            ],
+        ]);
+
+        if ($payload === false) {
+            $this->fail('Failed to encode JSON payload');
+        }
+
+        $result = $this->vcsAdapter->getEvent('push', $payload);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('branch', $result);
+        $this->assertArrayHasKey('commitHash', $result);
+        $this->assertArrayHasKey('repositoryName', $result);
+        $this->assertArrayHasKey('owner', $result);
+        $this->assertArrayHasKey('affectedFiles', $result);
+
+        $this->assertSame('main', $result['branch']);
+        $this->assertSame('def456', $result['commitHash']);
+        $this->assertSame('test-repo', $result['repositoryName']);
+        $this->assertSame('test-owner', $result['owner']);
+        $this->assertSame('Test commit message', $result['headCommitMessage']);
+        $this->assertSame('Test Author', $result['headCommitAuthorName']);
+        $this->assertSame('author@example.com', $result['headCommitAuthorEmail']);
+
+        $this->assertIsArray($result['affectedFiles']);
+        $this->assertContains('file1.txt', $result['affectedFiles']);
+        $this->assertContains('file2.txt', $result['affectedFiles']);
+        $this->assertContains('file3.txt', $result['affectedFiles']);
     }
+
+    public function testGetEventPullRequest(): void
+    {
+        $payload = json_encode([
+            'action' => 'opened',
+            'number' => 42,
+            'pull_request' => [
+                'id' => 1,
+                'number' => 42,
+                'state' => 'open',
+                'title' => 'Test PR',
+                'head' => [
+                    'ref' => 'feature-branch',
+                    'sha' => 'abc123',
+                    'repo' => [
+                        'full_name' => 'test-owner/test-repo',
+                    ],
+                    'user' => [
+                        'login' => 'pr-author',
+                    ],
+                ],
+                'base' => [
+                    'ref' => 'main',
+                    'sha' => 'def456',
+                    'user' => [
+                        'login' => 'base-owner',
+                    ],
+                ],
+                'user' => [
+                    'login' => 'pr-author',
+                    'avatar_url' => 'http://gitea:3000/avatars/pr-author',
+                ],
+            ],
+            'repository' => [
+                'id' => 123,
+                'name' => 'test-repo',
+                'full_name' => 'test-owner/test-repo',
+                'html_url' => 'http://gitea:3000/test-owner/test-repo',
+                'owner' => [
+                    'login' => 'test-owner',
+                ],
+            ],
+            'sender' => [
+                'login' => 'sender-user',
+                'html_url' => 'http://gitea:3000/sender-user',
+            ],
+        ]);
+
+        if ($payload === false) {
+            $this->fail('Failed to encode JSON payload');
+        }
+
+        $result = $this->vcsAdapter->getEvent('pull_request', $payload);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('branch', $result);
+        $this->assertArrayHasKey('pullRequestNumber', $result);
+        $this->assertArrayHasKey('action', $result);
+        $this->assertArrayHasKey('commitHash', $result);
+        $this->assertArrayHasKey('external', $result);
+
+        $this->assertSame('feature-branch', $result['branch']);
+        $this->assertSame(42, $result['pullRequestNumber']);
+        $this->assertSame('opened', $result['action']);
+        $this->assertSame('abc123', $result['commitHash']);
+        $this->assertSame('test-repo', $result['repositoryName']);
+        $this->assertSame('test-owner', $result['owner']);
+        $this->assertFalse($result['external']);
+    }
+
+    public function testGetEventPullRequestExternal(): void
+    {
+        $payload = json_encode([
+            'action' => 'opened',
+            'number' => 42,
+            'pull_request' => [
+                'head' => [
+                    'ref' => 'feature-branch',
+                    'sha' => 'abc123',
+                    'repo' => [
+                        'full_name' => 'external-user/forked-repo',
+                    ],
+                ],
+                'base' => [
+                    'ref' => 'main',
+                ],
+                'user' => [
+                    'avatar_url' => 'http://gitea:3000/avatars/external',
+                ],
+            ],
+            'repository' => [
+                'id' => 123,
+                'name' => 'test-repo',
+                'full_name' => 'test-owner/test-repo',
+                'html_url' => 'http://gitea:3000/test-owner/test-repo',
+                'owner' => [
+                    'login' => 'test-owner',
+                ],
+            ],
+            'sender' => [
+                'html_url' => 'http://gitea:3000/external-user',
+            ],
+        ]);
+
+        if ($payload === false) {
+            $this->fail('Failed to encode JSON payload');
+        }
+
+        $result = $this->vcsAdapter->getEvent('pull_request', $payload);
+
+        $this->assertTrue($result['external']);
+    }
+
+    public function testValidateWebhookEvent(): void
+    {
+        $payload = 'test payload content';
+        $secret = 'my-webhook-secret';
+        $validSignature = hash_hmac('sha256', $payload, $secret);
+
+        $result = $this->vcsAdapter->validateWebhookEvent($payload, $validSignature, $secret);
+
+        $this->assertTrue($result);
+    }
+
+    public function testValidateWebhookEventInvalid(): void
+    {
+        $payload = 'test payload content';
+        $secret = 'my-webhook-secret';
+        $invalidSignature = 'wrong-signature';
+
+        $result = $this->vcsAdapter->validateWebhookEvent($payload, $invalidSignature, $secret);
+
+        $this->assertFalse($result);
+    }
+
+    public function testGetEventInvalidPayload(): void
+    {
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Invalid payload');
+
+        $this->vcsAdapter->getEvent('push', 'invalid json');
+    }
+
+    public function testGetEventUnsupportedEvent(): void
+    {
+        $payload = json_encode(['test' => 'data']);
+
+        if ($payload === false) {
+            $this->fail('Failed to encode JSON payload');
+        }
+
+        $result = $this->vcsAdapter->getEvent('unsupported_event', $payload);
+
+        $this->assertIsArray($result);
+        $this->assertEmpty($result);
+    }
+
     public function testSearchRepositories(): void
     {
         // Create multiple repositories
@@ -897,18 +1150,52 @@ class GiteaTest extends Base
 
     public function testGetOwnerName(): void
     {
+        $repositoryName = 'test-get-owner-name-' . \uniqid();
+        $created = $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            $this->assertIsArray($created);
+            $this->assertArrayHasKey('id', $created);
+            $this->assertIsScalar($created['id']);
+            $repositoryId = (int) $created['id'];
+
+            $ownerName = $this->vcsAdapter->getOwnerName('', $repositoryId);
+
+            $this->assertSame(self::$owner, $ownerName);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
+    }
+
+    public function testGetOwnerNameWithZeroRepositoryId(): void
+    {
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('not applicable for Gitea');
+        $this->expectExceptionMessage('repositoryId is required for Gitea');
+
+        $this->vcsAdapter->getOwnerName('', 0);
+    }
+
+    public function testGetOwnerNameWithoutRepositoryId(): void
+    {
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('repositoryId is required for Gitea');
 
         $this->vcsAdapter->getOwnerName('');
     }
 
-    public function testGetOwnerNameWithRandomInput(): void
+    public function testGetOwnerNameWithInvalidRepositoryId(): void
+    {
+        $this->expectException(\Utopia\VCS\Exception\RepositoryNotFound::class);
+
+        $this->vcsAdapter->getOwnerName('', 999999999);
+    }
+
+    public function testGetOwnerNameWithNullRepositoryId(): void
     {
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('not applicable for Gitea');
+        $this->expectExceptionMessage('repositoryId is required for Gitea');
 
-        $this->vcsAdapter->getOwnerName('random-gibberish-' . \uniqid());
+        $this->vcsAdapter->getOwnerName('', null);
     }
 
     public function testGetUser(): void
@@ -989,7 +1276,39 @@ class GiteaTest extends Base
 
     public function testCreateComment(): void
     {
-        $this->markTestSkipped('Will be implemented in follow-up PR');
+        $repositoryName = 'test-create-comment-' . \uniqid();
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+            $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'test-branch', 'main');
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'test.txt', 'test', 'Add test', 'test-branch');
+
+            // Create PR
+            $pr = $this->vcsAdapter->createPullRequest(
+                self::$owner,
+                $repositoryName,
+                'Test PR',
+                'test-branch',
+                'main'
+            );
+
+            $prNumber = $pr['number'] ?? 0;
+            $this->assertGreaterThan(0, $prNumber);
+
+            // Test createComment
+            $commentId = $this->vcsAdapter->createComment(self::$owner, $repositoryName, $prNumber, 'Test comment');
+
+            $this->assertNotEquals('', $commentId);
+            $this->assertIsString($commentId);
+            $this->assertIsNumeric($commentId);
+
+            // Verify comment was created
+            $retrievedComment = $this->vcsAdapter->getComment(self::$owner, $repositoryName, $commentId);
+            $this->assertSame('Test comment', $retrievedComment);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
     }
 
     public function testCreateFile(): void
@@ -1146,4 +1465,116 @@ class GiteaTest extends Base
 
         $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
     }
+
+    public function testWebhookPushEvent(): void
+    {
+        $repositoryName = 'test-webhook-push-' . \uniqid();
+        $secret = 'test-webhook-secret-' . \uniqid();
+
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
+            $this->deleteLastWebhookRequest();
+            $this->vcsAdapter->createWebhook(self::$owner, $repositoryName, $catcherUrl . '/webhook', $secret);
+
+            // Trigger a real push by creating a file
+            $this->vcsAdapter->createFile(
+                self::$owner,
+                $repositoryName,
+                'README.md',
+                '# Webhook Test',
+                'Initial commit'
+            );
+
+            // Wait for push webhook to arrive automatically
+            $webhookData = [];
+            $this->assertEventually(function () use (&$webhookData) {
+                $webhookData = $this->getLastWebhookRequest();
+                $this->assertNotEmpty($webhookData, 'No webhook received');
+                $this->assertNotEmpty($webhookData['data'] ?? '', 'Webhook payload is empty');
+                $this->assertSame('push', $webhookData['headers']['X-Gitea-Event'] ?? '', 'Expected push event');
+            }, 15000, 500);
+
+            $payload = $webhookData['data'];
+            $headers = $webhookData['headers'] ?? [];
+            $signature = $headers['X-Gitea-Signature'] ?? '';
+
+            $this->assertNotEmpty($signature, 'Missing X-Gitea-Signature header');
+            $this->assertTrue(
+                $this->vcsAdapter->validateWebhookEvent($payload, $signature, $secret),
+                'Webhook signature validation failed'
+            );
+
+            $event = $this->vcsAdapter->getEvent('push', $payload);
+            $this->assertIsArray($event);
+            $this->assertSame('main', $event['branch']);
+            $this->assertSame($repositoryName, $event['repositoryName']);
+            $this->assertSame(self::$owner, $event['owner']);
+            $this->assertNotEmpty($event['commitHash']);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
+    }
+
+    public function testWebhookPullRequestEvent(): void
+    {
+        $repositoryName = 'test-webhook-pr-' . \uniqid();
+        $secret = 'test-webhook-secret-' . \uniqid();
+
+        $this->vcsAdapter->createRepository(self::$owner, $repositoryName, false);
+
+        try {
+            // Create all files BEFORE configuring webhook
+            // so those push events don't pollute the catcher
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'README.md', '# Test');
+            $this->vcsAdapter->createBranch(self::$owner, $repositoryName, 'feature-branch', 'main');
+            $this->vcsAdapter->createFile(self::$owner, $repositoryName, 'feature.txt', 'content', 'Add feature', 'feature-branch');
+
+            $catcherUrl = System::getEnv('TESTS_GITEA_REQUEST_CATCHER_URL', 'http://request-catcher:5000') ?? '';
+            $this->vcsAdapter->createWebhook(self::$owner, $repositoryName, $catcherUrl . '/webhook', $secret);
+
+            // Clear after setup so only PR event will arrive
+            $this->deleteLastWebhookRequest();
+
+            // Trigger real PR event
+            $this->vcsAdapter->createPullRequest(
+                self::$owner,
+                $repositoryName,
+                'Test Webhook PR',
+                'feature-branch',
+                'main'
+            );
+
+            // Wait for pull_request webhook to arrive automatically
+            $webhookData = [];
+            $this->assertEventually(function () use (&$webhookData) {
+                $webhookData = $this->getLastWebhookRequest();
+                $this->assertNotEmpty($webhookData, 'No webhook received');
+                $this->assertNotEmpty($webhookData['data'] ?? '', 'Webhook payload is empty');
+                $this->assertSame('pull_request', $webhookData['headers']['X-Gitea-Event'] ?? '', 'Expected pull_request event');
+            }, 15000, 500);
+
+            $payload = $webhookData['data'];
+            $headers = $webhookData['headers'] ?? [];
+            $signature = $headers['X-Gitea-Signature'] ?? '';
+
+            $this->assertNotEmpty($signature, 'Missing X-Gitea-Signature header');
+            $this->assertTrue(
+                $this->vcsAdapter->validateWebhookEvent($payload, $signature, $secret),
+                'Webhook signature validation failed'
+            );
+
+            $event = $this->vcsAdapter->getEvent('pull_request', $payload);
+            $this->assertIsArray($event);
+            $this->assertSame('feature-branch', $event['branch']);
+            $this->assertSame($repositoryName, $event['repositoryName']);
+            $this->assertSame(self::$owner, $event['owner']);
+            $this->assertContains($event['action'], ['opened', 'synchronized']);
+            $this->assertGreaterThan(0, $event['pullRequestNumber']);
+        } finally {
+            $this->vcsAdapter->deleteRepository(self::$owner, $repositoryName);
+        }
+    }
+
 }
