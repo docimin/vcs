@@ -71,7 +71,7 @@ class Gitea extends Git
             return;
         }
 
-        throw new Exception("accessToken is required for Gitea adapter.");
+        throw new Exception("accessToken is required for this adapter.");
     }
 
     /**
@@ -608,7 +608,7 @@ class Gitea extends Git
     public function getOwnerName(string $installationId, ?int $repositoryId = null): string
     {
         if ($repositoryId === null || $repositoryId <= 0) {
-            throw new Exception("repositoryId is required for Gitea");
+            throw new Exception("repositoryId is required for this adapter");
         }
 
         $url = "/repositories/{$repositoryId}";
