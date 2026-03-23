@@ -11,8 +11,8 @@ use Utopia\VCS\Adapter\Git\Gitea;
 
 class GiteaTest extends Base
 {
-    private static string $accessToken = '';
-    private static string $owner = '';
+    protected static string $accessToken = '';
+    protected static string $owner = '';
 
     protected function createVCSAdapter(): Git
     {
