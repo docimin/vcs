@@ -962,9 +962,19 @@ class GiteaTest extends Base
             'sender' => ['html_url' => "{$giteaUrl}/" . self::$owner],
         ]);
 
+        if ($payload === false) {
+            $this->fail('Failed to encode JSON payload');
+        }
+
         $result = $this->vcsAdapter->getEvent('pull_request', $payload);
 
         $this->assertIsArray($result);
+        $this->assertArrayHasKey('branch', $result);
+        $this->assertArrayHasKey('pullRequestNumber', $result);
+        $this->assertArrayHasKey('action', $result);
+        $this->assertArrayHasKey('commitHash', $result);
+        $this->assertArrayHasKey('external', $result);
+
         $this->assertSame('feature-branch', $result['branch']);
         $this->assertSame($prNumber, $result['pullRequestNumber']);
         $this->assertSame('opened', $result['action']);
@@ -1017,6 +1027,10 @@ class GiteaTest extends Base
             ],
             'sender' => ['html_url' => "{$giteaUrl}/external-user"],
         ]);
+
+        if ($payload === false) {
+            $this->fail('Failed to encode JSON payload');
+        }
 
         $result = $this->vcsAdapter->getEvent('pull_request', $payload);
 

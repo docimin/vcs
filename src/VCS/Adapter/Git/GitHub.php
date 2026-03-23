@@ -989,8 +989,13 @@ class GitHub extends Git
                 $baseLogin = $payloadPullRequestBaseUser['login'] ?? '';
                 $external = $headLogin !== $baseLogin;
 
-                $prFiles = $this->getPullRequestFiles($owner, $repositoryName, (int)$pullRequestNumber);
-                $affectedFiles = array_column($prFiles, 'filename');
+                try {
+                    $prFiles = $this->getPullRequestFiles($owner, $repositoryName, (int)$pullRequestNumber);
+                    $affectedFiles = array_column($prFiles, 'filename');
+                } catch (Exception $e) {
+                    // In case of any error while fetching pull request files, we will return an empty list of affected files.
+                    $affectedFiles = [];
+                }
 
                 return [
                     'branch' => $branch,
