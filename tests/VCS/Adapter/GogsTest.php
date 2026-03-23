@@ -60,4 +60,42 @@ class GogsTest extends GiteaTest
             }
         }
     }
+
+    // --- Skip tests for unsupported Gogs features ---
+
+    // Pull request API
+    public function testCommentWorkflow(): void { $this->markTestSkipped('Gogs does not support pull request API'); }
+    public function testGetComment(): void { $this->markTestSkipped('Gogs does not support pull request API'); }
+    public function testGetPullRequest(): void { $this->markTestSkipped('Gogs does not support pull request API'); }
+    public function testGetPullRequestWithInvalidNumber(): void { $this->markTestSkipped('Gogs does not support pull request API'); }
+    public function testGetPullRequestFromBranch(): void { $this->markTestSkipped('Gogs does not support pull request API'); }
+    public function testGetPullRequestFromBranchNoPR(): void { $this->markTestSkipped('Gogs does not support pull request API'); }
+    public function testUpdateComment(): void { $this->markTestSkipped('Gogs does not support pull request API'); }
+    public function testCreateComment(): void { $this->markTestSkipped('Gogs does not support pull request API'); }
+    public function testWebhookPullRequestEvent(): void { $this->markTestSkipped('Gogs does not support pull request API'); }
+
+    // Repository by ID
+    public function testGetRepositoryName(): void { $this->markTestSkipped('Gogs does not support /repositories/{id} endpoint'); }
+    public function testGetRepositoryNameWithInvalidId(): void { $this->markTestSkipped('Gogs does not support /repositories/{id} endpoint'); }
+    public function testGetOwnerName(): void { $this->markTestSkipped('Gogs does not support /repositories/{id} endpoint'); }
+    public function testGetOwnerNameWithZeroRepositoryId(): void { $this->markTestSkipped('Gogs does not support /repositories/{id} endpoint'); }
+    public function testGetOwnerNameWithoutRepositoryId(): void { $this->markTestSkipped('Gogs does not support /repositories/{id} endpoint'); }
+    public function testGetOwnerNameWithInvalidRepositoryId(): void { $this->markTestSkipped('Gogs does not support /repositories/{id} endpoint'); }
+    public function testGetOwnerNameWithNullRepositoryId(): void { $this->markTestSkipped('Gogs does not support /repositories/{id} endpoint'); }
+
+    // Tag creation
+    public function testCreateTag(): void { $this->markTestSkipped('Gogs does not support tag creation via API'); }
+    public function testGenerateCloneCommandWithTag(): void { $this->markTestSkipped('Gogs does not support tag creation via API'); }
+
+    // Commit status
+    public function testUpdateCommitStatus(): void { $this->markTestSkipped('Gogs does not support commit status API'); }
+    public function testUpdateCommitStatusWithInvalidCommit(): void { $this->markTestSkipped('Gogs does not support commit status API'); }
+    public function testUpdateCommitStatusWithNonExistingRepository(): void { $this->markTestSkipped('Gogs does not support commit status API'); }
+
+    // Repository languages
+    public function testListRepositoryLanguages(): void { $this->markTestSkipped('Gogs does not support repository languages endpoint'); }
+    public function testListRepositoryLanguagesEmptyRepo(): void { $this->markTestSkipped('Gogs does not support repository languages endpoint'); }
+
+    // Webhook (missing Fetch dependency)
+    public function testWebhookPushEvent(): void { $this->markTestSkipped('Gogs webhook test requires request-catcher URL config'); }
 }
