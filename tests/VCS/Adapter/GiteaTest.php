@@ -1176,7 +1176,7 @@ class GiteaTest extends Base
     public function testGetOwnerNameWithZeroRepositoryId(): void
     {
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('repositoryId is required for Gitea');
+        $this->expectExceptionMessage('repositoryId is required for this adapter');
 
         $this->vcsAdapter->getOwnerName('', 0);
     }
@@ -1184,7 +1184,7 @@ class GiteaTest extends Base
     public function testGetOwnerNameWithoutRepositoryId(): void
     {
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('repositoryId is required for Gitea');
+        $this->expectExceptionMessage('repositoryId is required for this adapter');
 
         $this->vcsAdapter->getOwnerName('');
     }
@@ -1199,7 +1199,7 @@ class GiteaTest extends Base
     public function testGetOwnerNameWithNullRepositoryId(): void
     {
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('repositoryId is required for Gitea');
+        $this->expectExceptionMessage('repositoryId is required for this adapter');
 
         $this->vcsAdapter->getOwnerName('', null);
     }
@@ -1223,9 +1223,9 @@ class GiteaTest extends Base
 
     public function testGetInstallationRepository(): void
     {
-        // This method is not applicable for Gitea
+        // This method is not applicable for this adapter
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('not applicable for Gitea');
+        $this->expectExceptionMessage('not applicable for this adapter');
 
         $this->vcsAdapter->getInstallationRepository('any-repo-name');
     }
