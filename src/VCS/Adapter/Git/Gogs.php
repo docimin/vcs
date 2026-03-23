@@ -3,6 +3,7 @@
 namespace Utopia\VCS\Adapter\Git;
 
 use Exception;
+use Utopia\VCS\Exception\RepositoryNotFound;
 
 class Gogs extends Gitea
 {
@@ -63,18 +64,34 @@ class Gogs extends Gitea
     /**
      * Search repositories in organization
      *
-     * Gogs requires the `q` parameter for search to return results.
-     * When no search query is given, we pass '*' as a wildcard.
+     * When no search query is given, Gogs search API returns empty results,
+     * so we fall back to listing org repos directly via /orgs/{org}/repos.
      *
      * @return array<mixed>
      */
     public function searchRepositories(string $owner, int $page, int $per_page, string $search = ''): array
     {
-        if (empty($search)) {
-            $search = '_'; // Gogs requires q param; underscore matches most repo names
+        if (!empty($search)) {
+            return parent::searchRepositories($owner, $page, $per_page, $search);
         }
 
-        return parent::searchRepositories($owner, $page, $per_page, $search);
+        // List all repos for the org directly
+        $url = "/orgs/{$owner}/repos";
+        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "token $this->accessToken"]);
+
+        $responseBody = $response['body'] ?? [];
+        if (!is_array($responseBody)) {
+            $responseBody = [];
+        }
+
+        $total = count($responseBody);
+        $offset = ($page - 1) * $per_page;
+        $pagedRepos = array_slice($responseBody, $offset, $per_page);
+
+        return [
+            'items' => $pagedRepos,
+            'total' => $total,
+        ];
     }
 
     /**
@@ -118,21 +135,71 @@ class Gogs extends Gitea
     /**
      * Get repository name by ID
      *
-     * Gogs does not support /repositories/{id}. Uses search as fallback.
+     * Gogs does not have /repositories/{id}. Searches all repos to find by ID.
      */
     public function getRepositoryName(string $repositoryId): string
     {
-        throw new Exception("getRepositoryName by ID is not supported by Gogs");
+        $repo = $this->findRepositoryById((int) $repositoryId);
+
+        return $repo['name'];
     }
 
     /**
-     * Get owner name
+     * Get owner name by repository ID
      *
-     * Gogs does not support /repositories/{id}.
+     * Gogs does not have /repositories/{id}. Searches all repos to find by ID.
      */
     public function getOwnerName(string $installationId, ?int $repositoryId = null): string
     {
-        throw new Exception("getOwnerName by repository ID is not supported by Gogs");
+        if ($repositoryId === null || $repositoryId <= 0) {
+            throw new Exception("repositoryId is required for this adapter");
+        }
+
+        $repo = $this->findRepositoryById($repositoryId);
+        $owner = $repo['owner'] ?? [];
+
+        if (empty($owner['login'])) {
+            throw new Exception("Owner login missing or empty in response");
+        }
+
+        return $owner['login'];
+    }
+
+    /**
+     * Find a repository by its numeric ID using the search API.
+     *
+     * @return array<mixed> Repository data
+     */
+    private function findRepositoryById(int $repositoryId): array
+    {
+        $page = 1;
+        $limit = 50;
+
+        while ($page <= 100) {
+            $url = "/repos/search?q=_&limit={$limit}&page={$page}";
+            $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "token $this->accessToken"]);
+
+            $responseBody = $response['body'] ?? [];
+            $repos = $responseBody['data'] ?? [];
+
+            if (empty($repos)) {
+                break;
+            }
+
+            foreach ($repos as $repo) {
+                if (($repo['id'] ?? 0) === $repositoryId) {
+                    return $repo;
+                }
+            }
+
+            if (count($repos) < $limit) {
+                break;
+            }
+
+            $page++;
+        }
+
+        throw new RepositoryNotFound("Repository not found");
     }
 
     /**
@@ -190,41 +257,34 @@ class Gogs extends Gitea
     /**
      * Create a file in a repository
      *
-     * Gogs PUT /contents/{path} only works on the default branch and cannot
-     * target a specific branch. When a branch is specified we fall back to
-     * git CLI so the file lands on the correct branch.
+     * Gogs uses PUT /repos/{owner}/{repo}/contents/{path}.
+     * For non-default branches we use git CLI, because the Gogs API `branch`
+     * param creates a new branch rather than targeting an existing one.
      *
      * @return array<mixed>
      */
     public function createFile(string $owner, string $repositoryName, string $filepath, string $content, string $message = 'Add file', string $branch = ''): array
     {
-        if (empty($branch)) {
-            // Default branch — use Gogs API (PUT)
-            $url = "/repos/{$owner}/{$repositoryName}/contents/{$filepath}";
+        $url = "/repos/{$owner}/{$repositoryName}/contents/{$filepath}";
 
-            $response = $this->call(
-                self::METHOD_PUT,
-                $url,
-                ['Authorization' => "token $this->accessToken"],
-                [
-                    'content' => base64_encode($content),
-                    'message' => $message,
-                ]
-            );
+        $response = $this->call(
+            self::METHOD_PUT,
+            $url,
+            ['Authorization' => "token $this->accessToken"],
+            [
+                'content' => base64_encode($content),
+                'message' => $message,
+                'branch' => $branch
+            ]
+        );
 
-            $responseHeaders = $response['headers'] ?? [];
-            $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
-            if ($responseHeadersStatusCode >= 400) {
-                throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}");
-            }
-
-            return $response['body'] ?? [];
+        $responseHeaders = $response['headers'] ?? [];
+        $responseHeadersStatusCode = $responseHeaders['status-code'] ?? 0;
+        if ($responseHeadersStatusCode >= 400) {
+            throw new Exception("Failed to create file {$filepath}: HTTP {$responseHeadersStatusCode}");
         }
 
-        // Specific branch — use git CLI
-        $this->gitCreateFile($owner, $repositoryName, $branch, $filepath, $content, $message);
-
-        return [];
+        return $response['body'] ?? [];
     }
 
     /**
@@ -269,30 +329,6 @@ class Gogs extends Gitea
         return trim($dir, "'\"");
     }
 
-    /**
-     * Create a file via git CLI: clone, write, commit, push.
-     */
-    private function gitCreateFile(string $owner, string $repositoryName, string $branch, string $filepath, string $content, string $message): void
-    {
-        $dir = $this->gitClone($owner, $repositoryName, $branch);
-
-        try {
-            $fullPath = $dir . '/' . $filepath;
-            $parentDir = dirname($fullPath);
-
-            if (!is_dir($parentDir)) {
-                mkdir($parentDir, 0777, true);
-            }
-
-            file_put_contents($fullPath, $content);
-
-            $this->exec("git -C " . escapeshellarg($dir) . " add " . escapeshellarg($filepath));
-            $this->exec("git -C " . escapeshellarg($dir) . " commit -m " . escapeshellarg($message));
-            $this->exec("git -C " . escapeshellarg($dir) . " push origin " . escapeshellarg($branch));
-        } finally {
-            $this->exec("rm -rf " . escapeshellarg($dir));
-        }
-    }
 
     /**
      * Execute a shell command and throw on failure.

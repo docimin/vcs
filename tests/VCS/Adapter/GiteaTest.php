@@ -830,7 +830,7 @@ class GiteaTest extends Base
     public function testGetEventPush(): void
     {
         $payload = json_encode([
-            'ref' => 'refs/heads/main',
+            'ref' => 'refs/heads/' . static::$defaultBranch,
             'before' => 'abc123',
             'after' => 'def456',
             'created' => false,
@@ -1180,7 +1180,7 @@ class GiteaTest extends Base
     public function testGetOwnerNameWithZeroRepositoryId(): void
     {
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('repositoryId is required for Gitea');
+        $this->expectExceptionMessage('repositoryId is required for this adapter');
 
         $this->vcsAdapter->getOwnerName('', 0);
     }
@@ -1188,7 +1188,7 @@ class GiteaTest extends Base
     public function testGetOwnerNameWithoutRepositoryId(): void
     {
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('repositoryId is required for Gitea');
+        $this->expectExceptionMessage('repositoryId is required for this adapter');
 
         $this->vcsAdapter->getOwnerName('');
     }
@@ -1203,7 +1203,7 @@ class GiteaTest extends Base
     public function testGetOwnerNameWithNullRepositoryId(): void
     {
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('repositoryId is required for Gitea');
+        $this->expectExceptionMessage('repositoryId is required for this adapter');
 
         $this->vcsAdapter->getOwnerName('', null);
     }

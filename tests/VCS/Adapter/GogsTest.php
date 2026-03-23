@@ -61,6 +61,9 @@ class GogsTest extends GiteaTest
         }
     }
 
+    // Webhook delivery (Gogs queues but does not deliver webhooks in test environment)
+    public function testWebhookPushEvent(): void { $this->markTestSkipped('Gogs webhook delivery not working in test environment'); }
+
     // --- Skip tests for unsupported Gogs features ---
 
     // Pull request API
@@ -74,15 +77,6 @@ class GogsTest extends GiteaTest
     public function testCreateComment(): void { $this->markTestSkipped('Gogs does not support pull request API'); }
     public function testWebhookPullRequestEvent(): void { $this->markTestSkipped('Gogs does not support pull request API'); }
 
-    // Repository by ID
-    public function testGetRepositoryName(): void { $this->markTestSkipped('Gogs does not support /repositories/{id} endpoint'); }
-    public function testGetRepositoryNameWithInvalidId(): void { $this->markTestSkipped('Gogs does not support /repositories/{id} endpoint'); }
-    public function testGetOwnerName(): void { $this->markTestSkipped('Gogs does not support /repositories/{id} endpoint'); }
-    public function testGetOwnerNameWithZeroRepositoryId(): void { $this->markTestSkipped('Gogs does not support /repositories/{id} endpoint'); }
-    public function testGetOwnerNameWithoutRepositoryId(): void { $this->markTestSkipped('Gogs does not support /repositories/{id} endpoint'); }
-    public function testGetOwnerNameWithInvalidRepositoryId(): void { $this->markTestSkipped('Gogs does not support /repositories/{id} endpoint'); }
-    public function testGetOwnerNameWithNullRepositoryId(): void { $this->markTestSkipped('Gogs does not support /repositories/{id} endpoint'); }
-
     // Tag creation
     public function testCreateTag(): void { $this->markTestSkipped('Gogs does not support tag creation via API'); }
     public function testGenerateCloneCommandWithTag(): void { $this->markTestSkipped('Gogs does not support tag creation via API'); }
@@ -95,7 +89,4 @@ class GogsTest extends GiteaTest
     // Repository languages
     public function testListRepositoryLanguages(): void { $this->markTestSkipped('Gogs does not support repository languages endpoint'); }
     public function testListRepositoryLanguagesEmptyRepo(): void { $this->markTestSkipped('Gogs does not support repository languages endpoint'); }
-
-    // Webhook (missing Fetch dependency)
-    public function testWebhookPushEvent(): void { $this->markTestSkipped('Gogs webhook test requires request-catcher URL config'); }
 }
