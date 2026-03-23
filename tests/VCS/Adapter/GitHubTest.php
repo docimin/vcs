@@ -181,6 +181,12 @@ class GitHubTest extends Base
         $this->assertNotEmpty($result);
     }
 
+    public function testGetRepositoryAccessType(): void
+    {
+        $accessType = $this->vcsAdapter->getRepositoryAccessType();
+        $this->assertSame('all', $accessType);
+    }
+
     public function testGetInstallationRepository(): void
     {
         $repositoryName = 'astro-starter';

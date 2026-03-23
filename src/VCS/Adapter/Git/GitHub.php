@@ -175,6 +175,21 @@ class GitHub extends Git
     }
 
     /**
+     * Get repository access type for the installation
+     *
+     * @return string 'all' if installation has access to all repositories, 'selected' if it has access to specific repositories
+     *
+     * @throws Exception
+     */
+    public function getRepositoryAccessType(): string
+    {
+        $url = '/app/installations/' . $this->installationId;
+        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->jwtToken"]);
+        $responseBody = $response['body'] ?? [];
+        return $responseBody['repository_selection'] ?? 'all';
+    }
+
+    /**
      * Search repositories for GitHub App
      * @param string $installationId ID of the installation
      * @param string $owner Name of user or org
@@ -185,13 +200,9 @@ class GitHub extends Git
      *
      * @throws Exception
      */
-    public function searchRepositories(string $installationId, string $owner, int $page, int $per_page, string $search = ''): array
+    public function searchRepositories(string $owner, int $page, int $per_page, string $search = ''): array
     {
-        // Find whether installation has access to all (or) specific repositories
-        $url = '/app/installations/' . $installationId;
-        $response = $this->call(self::METHOD_GET, $url, ['Authorization' => "Bearer $this->jwtToken"]);
-        $responseBody = $response['body'] ?? [];
-        $hasAccessToAllRepositories = ($responseBody['repository_selection'] ?? '') === 'all';
+        $hasAccessToAllRepositories = $this->getRepositoryAccessType() === 'all';
 
         // Installation has access to all repositories, use the search API which supports filtering.
         if ($hasAccessToAllRepositories) {

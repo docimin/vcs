@@ -118,16 +118,27 @@ class Gitea extends Git
     }
 
     /**
+     * Get repository access type for the installation
+     *
+     * @return string 'all' if installation has access to all repositories, 'selected' if it has access to specific repositories
+     *
+     * @throws Exception
+     */
+    public function getRepositoryAccessType(): string
+    {
+        throw new Exception('Not implemented yet');
+    }
+
+    /**
      * Search repositories in organization
      *
-     * @param string $installationId Not used in Gitea (kept for interface compatibility)
      * @param string $owner Organization or user name
      * @param int $page Page number for pagination
      * @param int $per_page Number of results per page
      * @param string $search Search query to filter repository names
      * @return array<mixed> Array with 'items' (repositories) and 'total' count
      */
-    public function searchRepositories(string $installationId, string $owner, int $page, int $per_page, string $search = ''): array
+    public function searchRepositories(string $owner, int $page, int $per_page, string $search = ''): array
     {
         $filteredRepos = [];
         $currentPage = 1;
