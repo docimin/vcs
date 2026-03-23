@@ -135,28 +135,58 @@ services:
       start_period: 15s
 
   gogs-bootstrap:
-    image: gogs/gogs:0.13
+    image: alpine/curl:8.12.1
     volumes:
       - gogs-data:/data
     depends_on:
       gogs:
         condition: service_healthy
-    entrypoint: /bin/sh
     environment:
       - GOGS_ADMIN_USERNAME=${GOGS_ADMIN_USERNAME:-utopia}
       - GOGS_ADMIN_PASSWORD=${GOGS_ADMIN_PASSWORD:-password}
       - GOGS_ADMIN_EMAIL=${GOGS_ADMIN_EMAIL:-utopia@example.com}
-    command: >
-      -c "
-        if [ ! -f /data/gogs/token.txt ]; then
-          curl -s -o /dev/null -X POST http://gogs:3000/install -d db_type=SQLite3 -d db_path=/data/gogs.db -d app_name=Gogs -d repo_root_path=/data/repositories -d run_user=git -d domain=gogs -d http_port=3000 -d app_url=http://gogs:3000/ -d log_root_path=/data/gogs/log -d default_branch=master -d admin_name=$$GOGS_ADMIN_USERNAME -d admin_passwd=$$GOGS_ADMIN_PASSWORD -d admin_confirm_passwd=$$GOGS_ADMIN_PASSWORD -d admin_email=$$GOGS_ADMIN_EMAIL &&
-          sleep 3 &&
-          printf '\n[webhook]\nDELIVER_TIMEOUT = 10\nSKIP_TLS_VERIFY = true\n' >> /data/gogs/conf/app.ini &&
-          TOKEN=$$(curl -s -X POST http://gogs:3000/api/v1/users/$$GOGS_ADMIN_USERNAME/tokens -H 'Content-Type: application/json' -d '{\"name\":\"bootstrap-token\"}' -u $$GOGS_ADMIN_USERNAME:$$GOGS_ADMIN_PASSWORD | tr -d ' ' | sed -n 's/.*\"sha1\":\"\([^\"]*\)\".*/\1/p') &&
-          mkdir -p /data/gogs &&
-          echo $$TOKEN > /data/gogs/token.txt;
+    entrypoint: /bin/sh
+    command:
+      - -ce
+      - |
+        if [ -f /data/gogs/token.txt ]; then exit 0; fi
+
+        apk add --no-cache jq
+
+        curl -s -o /dev/null -X POST http://gogs:3000/install \
+          -d db_type=SQLite3 \
+          -d db_path=/data/gogs.db \
+          -d app_name=Gogs \
+          -d repo_root_path=/data/repositories \
+          -d run_user=git \
+          -d domain=gogs \
+          -d http_port=3000 \
+          -d app_url=http://gogs:3000/ \
+          -d log_root_path=/data/gogs/log \
+          -d default_branch=master \
+          -d admin_name=$$GOGS_ADMIN_USERNAME \
+          -d admin_passwd=$$GOGS_ADMIN_PASSWORD \
+          -d admin_confirm_passwd=$$GOGS_ADMIN_PASSWORD \
+          -d admin_email=$$GOGS_ADMIN_EMAIL \
+          || true
+
+        sleep 3
+
+        if ! grep -q '\[webhook\]' /data/gogs/conf/app.ini; then
+          printf '\n[webhook]\nDELIVER_TIMEOUT = 10\nSKIP_TLS_VERIFY = true\n' >> /data/gogs/conf/app.ini
         fi
-      "
+
+        RESPONSE=$$(curl -s -X POST http://gogs:3000/api/v1/users/$$GOGS_ADMIN_USERNAME/tokens \
+          -H 'Content-Type: application/json' \
+          -d "{\"name\":\"bootstrap-$$(date +%s)\"}" \
+          -u $$GOGS_ADMIN_USERNAME:$$GOGS_ADMIN_PASSWORD)
+        echo "Token API response: $$RESPONSE"
+
+        TOKEN=$$(echo "$$RESPONSE" | jq -r '.sha1')
+        if [ -z "$$TOKEN" ] || [ "$$TOKEN" = "null" ]; then echo 'Failed to extract token'; exit 1; fi
+
+        mkdir -p /data/gogs
+        echo $$TOKEN > /data/gogs/token.txt
 
 volumes:
   gitea-data:
