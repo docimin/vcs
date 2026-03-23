@@ -64,8 +64,10 @@ services:
     command: >
       -c "
         su git -c \"gitea admin user create --username $$GITEA_ADMIN_USERNAME --password $$GITEA_ADMIN_PASSWORD --email $$GITEA_ADMIN_EMAIL --admin --must-change-password=false\" || true &&
-        TOKEN=$$(su git -c \"gitea admin user generate-access-token --username $$GITEA_ADMIN_USERNAME --token-name $$GITEA_ADMIN_USERNAME-token --scopes all --raw\") &&
-        echo $$TOKEN > /data/gitea/token.txt
+        if [ ! -f /data/gitea/token.txt ]; then
+          TOKEN=$$(su git -c \"gitea admin user generate-access-token --username $$GITEA_ADMIN_USERNAME --token-name $$GITEA_ADMIN_USERNAME-token --scopes all --raw\") &&
+          echo $$TOKEN > /data/gitea/token.txt;
+        fi
       "
   request-catcher:                                                   
     image: appwrite/requestcatcher:1.1.0
@@ -107,8 +109,10 @@ services:
     command: >
       -c "
         su git -c \"forgejo admin user create --username $$FORGEJO_ADMIN_USERNAME --password $$FORGEJO_ADMIN_PASSWORD --email $$FORGEJO_ADMIN_EMAIL --admin --must-change-password=false\" || true &&
-        TOKEN=$$(su git -c \"forgejo admin user generate-access-token --username $$FORGEJO_ADMIN_USERNAME --token-name $$FORGEJO_ADMIN_USERNAME-token --scopes all --raw\") &&
-        echo $$TOKEN > /data/gitea/token.txt
+        if [ ! -f /data/gitea/token.txt ]; then
+          TOKEN=$$(su git -c \"forgejo admin user generate-access-token --username $$FORGEJO_ADMIN_USERNAME --token-name $$FORGEJO_ADMIN_USERNAME-token --scopes all --raw\") &&
+          echo $$TOKEN > /data/gitea/token.txt;
+        fi
       "
 
 volumes:

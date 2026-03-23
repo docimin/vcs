@@ -16,6 +16,7 @@ class GiteaTest extends Base
 
     protected string $webhookEventHeader = 'X-Gitea-Event';
     protected string $webhookSignatureHeader = 'X-Gitea-Signature';
+    protected string $avatarDomain = 'gravatar.com';
 
     protected function createVCSAdapter(): Git
     {
@@ -749,7 +750,7 @@ class GiteaTest extends Base
         $this->assertSame($commitHash, $result['commitHash']);
         $this->assertSame('utopia', $result['commitAuthor']);
         $this->assertStringStartsWith($customMessage, $result['commitMessage']);
-        $this->assertStringContainsString('gravatar.com', $result['commitAuthorAvatar']);
+        $this->assertStringContainsString($this->avatarDomain, $result['commitAuthorAvatar']);
         $this->assertNotEmpty($result['commitUrl']);
 
         $this->vcsAdapter->deleteRepository(static::$owner, $repositoryName);
@@ -777,7 +778,7 @@ class GiteaTest extends Base
         $this->assertNotEmpty($commit1['commitHash']);
         $this->assertSame('utopia', $commit1['commitAuthor']);
         $this->assertStringStartsWith($firstMessage, $commit1['commitMessage']);
-        $this->assertStringContainsString('gravatar.com', $commit1['commitAuthorAvatar']);
+        $this->assertStringContainsString($this->avatarDomain, $commit1['commitAuthorAvatar']);
         $this->assertNotEmpty($commit1['commitUrl']);
 
         $commit1Hash = $commit1['commitHash'];
