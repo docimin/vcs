@@ -77,7 +77,7 @@ class Gitea extends Git
     /**
      * Generate Access Token
      *
-     * Note: This method is required by the Adapter interface but is not used for Gitea.
+     * Note: This method is required by the Adapter interface but is not used for this adapter.
      * Gitea uses OAuth2 tokens that are provided directly via initializeVariables().
      */
     protected function generateAccessToken(string $privateKey, string $appId): void
