@@ -159,12 +159,13 @@ services:
 
         if [ ! -f /data/gogs/token.txt ]; then
           sleep 2
-          RESPONSE=$$(curl -s -X POST http://gogs:3000/api/v1/users/$$GOGS_ADMIN_USERNAME/tokens \
+          TOKEN=$$(curl -s \
+            -X POST \
+            -u $$GOGS_ADMIN_USERNAME:$$GOGS_ADMIN_PASSWORD \
             -H "Content-Type: application/json" \
             -d "{\"name\":\"bootstrap\"}" \
-            -u $$GOGS_ADMIN_USERNAME:$$GOGS_ADMIN_PASSWORD)
-          echo "Token response: $$RESPONSE"
-          TOKEN=$$(echo "$$RESPONSE" | grep -o '"sha1":"[^"]*"' | cut -d'"' -f4)
+            http://gogs:3000/api/v1/users/$$GOGS_ADMIN_USERNAME/tokens \
+            | grep -o '"sha1":"[^"]*"' | cut -d'"' -f4)
           if [ -z "$$TOKEN" ]; then echo "Failed to get token"; exit 1; fi
           mkdir -p /data/gogs
           echo $$TOKEN > /data/gogs/token.txt
