@@ -600,7 +600,7 @@ class GitHub extends Git
         $appIdentifier = $appId;
 
         $iat = time();
-        $exp = $iat + 10 * 60;
+        $exp = $iat + 9 * 60;
         $payload = [
             'iat' => $iat,
             'exp' => $exp,
